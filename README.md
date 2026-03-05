@@ -1,4 +1,4 @@
-# IoT Data Processing Tool
+# IOTEL: A Tool for Generating IoT-enriched Object-Centric Event Logs
 
 A local, Flask-based web application designed to process IoT CSV data into a common IoT schema, explore Object-Centric Event Logs (OCEL), and seamlessly integrate IoT data into event logs. No external services or network calls are required.
 
@@ -47,6 +47,8 @@ The container starts the web application on `http://127.0.0.1:5001/`. Volumes ar
 4. **Integrate**: Follow the 6-step process to integrate the processed IoT data into the OCEL event logs.
 
 Warnings are surfaced in-app when uploads are rejected, data parsing fails, or combined IoT data/integrated database encounter issues.
+
+*Please visit for the demo video: https://drive.google.com/file/d/1UY9KrkuVCIpnFwg2lyUpTS45aR_5-NJW/view?usp=sharing*
 
 ## Directory Overview
 
