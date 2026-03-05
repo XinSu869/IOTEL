@@ -1,0 +1,9 @@
+{
+  "canonical_names": [
+    "device_id",
+    "device_type",
+    "property",
+    "result_time",
+    "location"
+  ]
+}

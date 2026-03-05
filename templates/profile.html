@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Profile · {{ filename }}{% endblock %}
+
+{% block content %}
+<style>
+    .profile-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+    .meta-card,
+    .panel {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        padding: 24px 28px;
+    }
+    .panel h2 {
+        margin-top: 0;
+        font-size: 20px;
+        font-weight: 700;
+    }
+    .meta-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        color: var(--text-muted);
+    }
+    .schema-table,
+    .preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+    .schema-table thead,
+    .preview-table thead {
+        background: rgba(248, 250, 252, 0.9);
+    }
+    .schema-table th,
+    .schema-table td,
+    .preview-table th,
+    .preview-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        text-align: left;
+    }
+    .preview-scroll {
+        overflow-x: auto;
+    }
+    .actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+    .primary-btn {
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: none;
+        background: #1f2937;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+    }
+</style>
+
+<div class="profile-wrapper">
+    <div class="meta-card">
+        <h1 style="margin-top:0;">{{ filename }}</h1>
+        <ul class="meta-list">
+            <li><strong>Estimated rows:</strong> {{ schema.row_count_estimate | default("—") }}</li>
+            <li><strong>File size:</strong> {{ (schema.file_size_bytes | filesizeformat) if schema.file_size_bytes is defined else "—" }}</li>
+            <li><strong>Total columns:</strong> {{ summary.ncols | default("—") }}</li>
+            <li><strong>Total rows (sample):</strong> {{ summary.nrows | default("—") }}</li>
+            {% if file_meta %}
+            <li><strong>Last modified:</strong> {{ file_meta.mtime_label or "—" }}</li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div class="panel">
+        <h2>Proposed Schema</h2>
+        <div class="preview-scroll">
+            <table class="schema-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Proposed dtype</th>
+                        <th scope="col">Nulls (estimate)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for column in schema.columns %}
+                    <tr>
+                        <td>{{ column.name }}</td>
+                        <td>{{ column.proposed_dtype }}</td>
+                        <td>{{ column.nulls_estimate }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Preview (Top 20 Rows)</h2>
+        <div class="preview-scroll">
+            <table class="preview-table">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                        <th scope="col">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rows %}
+                        {% for row in rows %}
+                        <tr>
+                            {% for cell in row %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ headers|length or 1 }}">No preview rows available.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a class="primary-btn" href="{{ url_for('adjust', filename=filename) }}">Adjust &amp; Map</a>
+    </div>
+</div>
+{% endblock %}

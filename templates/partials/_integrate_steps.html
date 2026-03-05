@@ -1,0 +1,206 @@
+<!-- Step 1 Form -->
+<div class="form-step" id="form-step1">
+    <div class="space-y-4">
+        <p class="text-xs text-gray-500">Which IoT device type do you want to integrate?</p>
+        <select id="iot-type-select"
+            class="block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
+            <option value="">-- Select IoT Device Type --</option>
+            {% for type in iot_types %}
+            <option value="{{ type }}">{{ type }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Result Container -->
+        <div id="step1-results" class="hidden mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p class="text-sm text-gray-700 font-medium mb-2">The following business objects were
+                identified by matching IoT locations to OCEL object IDs:</p>
+            <ul id="step1-objects-list" class="text-sm text-gray-600 pl-2">
+                <!-- Dynamic Items -->
+            </ul>
+        </div>
+
+        <p id="step1-loading" class="text-sm text-amber-600 hidden mt-2">Analysing IoT data
+            connectivity...</p>
+
+    </div>
+    <div class="absolute bottom-8 right-8">
+        <button id="btn-step1-next"
+            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors list-none"
+            disabled>Continue</button>
+    </div>
+</div>
+
+<!-- Step 2 Form -->
+<div class="form-step hidden" id="form-step2">
+    <div class="space-y-4">
+        <p class="text-xs text-gray-500">Where does the interaction occur?</p>
+        <div class="grid grid-cols-1 gap-4">
+            {% for level in interaction_levels %}
+            <label class="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="interaction_level" value="{{ level.id }}" data-label="{{ level.label }}"
+                    class="h-4 w-4 text-amber-500 focus:ring-amber-500 border-gray-300">
+                <span class="ml-3 font-medium text-gray-900">{{ level.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="absolute bottom-8 left-8">
+        <button id="btn-step2-back"
+            class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+    </div>
+    <div class="absolute bottom-8 right-8">
+        <button id="btn-step2-next"
+            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            disabled>Continue</button>
+    </div>
+</div>
+
+<!-- Step 3 Form -->
+<div class="form-step hidden" id="form-step3">
+    <div class="space-y-4">
+        <p class="text-xs text-gray-500">To which process elements should the IoT data be added:</p>
+        <div class="grid grid-cols-1 gap-4">
+            {% for attr in attribute_types %}
+            <label class="flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="attribute_type" value="{{ attr.id }}" data-label="{{ attr.label }}"
+                    class="h-4 w-4 text-amber-500 focus:ring-amber-500 border-gray-300">
+                <span class="ml-3 font-medium text-gray-900">{{ attr.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        <p id="step3-lock-msg" class="text-sm p-3 bg-amber-50 text-amber-800 rounded hidden border border-amber-200">
+        </p>
+    </div>
+    <div class="absolute bottom-8 left-8">
+        <button id="btn-step3-back"
+            class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+    </div>
+    <div class="absolute bottom-8 right-8">
+        <button id="btn-step3-next"
+            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            disabled>Continue</button>
+    </div>
+</div>
+
+<!-- Step 4 Form -->
+<div class="form-step hidden" id="form-step4">
+    <p class="text-xs text-gray-500">Determine the semantics of the relationship between IoT
+        device and process elements (objects or events).</p>
+    <br>
+    <div id="step4-dynamic-content" class="space-y-6">
+        <!-- Loading State -->
+        <div class="animate-pulse space-y-4">
+            <div class="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div class="h-10 bg-gray-200 rounded"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div class="h-10 bg-gray-200 rounded"></div>
+        </div>
+    </div>
+    <div class="absolute bottom-8 left-8">
+        <button id="btn-step4-back"
+            class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+    </div>
+</div>
+
+<!-- Step 5 Form -->
+<div class="form-step hidden flex flex-col h-full" id="form-step5">
+    <div class="space-y-6 pb-16 overflow-y-auto w-full flex-grow">
+        <p class="text-xs text-gray-500">Determine the IoT data should be passed through, aggregated or filtered before
+            integrating to the event log.</p>
+
+        <!-- Scenario C Warning -->
+        <div id="step5-scenario-c-msg"
+            class="hidden p-4 mb-4 text-sm text-blue-800 rounded-lg bg-blue-50 border border-blue-200">
+            <span class="font-medium">Note:</span> For Event Attribute integration without aggregation
+            and an existing
+            map, the system matches the closest IoT reading within 1 hour before the event. If no
+            reading is found, no data will be integrated for that event.
+        </div>
+
+        <!-- Scenario A (with Events) Warning -->
+        <div id="step5-scenario-a-msg"
+            class="hidden p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-200">
+            <span class="font-medium">Restriction:</span> When integrating Object Attributes associated
+            with events, only "No data processing" is supported.
+        </div>
+
+        <select id="process-logic-select"
+            class="block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors">
+            <option value="1">No data processing</option>
+            <option value="2">Filter</option>
+            <option value="3">Aggregate</option>
+        </select>
+
+        <!-- Filter Options -->
+        <div id="step5-filter-options" class="hidden pl-4 border-l-2 border-amber-200 mt-4 space-y-4">
+            <div id="filter-conditions-container" class="space-y-4 max-h-72 overflow-y-auto pr-2">
+                <!-- Filter rows injected here -->
+            </div>
+            <button id="btn-add-filter"
+                class="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center mt-2">
+                <span class="material-icons text-base mr-1">add</span> Add Filter Condition
+            </button>
+        </div>
+
+        <!-- Aggregate Options -->
+        <div id="step5-agg-options" class="hidden pl-4 border-l-2 border-amber-200 mt-4 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Function</label>
+                <select id="agg-func"
+                    class="block w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+                    <option value="max">Max</option>
+                    <option value="min">Min</option>
+                    <option value="mean">Mean</option>
+                    <option value="median">Median</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Window (Minutes)</label>
+                <input type="number" id="agg-window"
+                    class="block w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="e.g. 5">
+            </div>
+        </div>
+
+    </div>
+    <div class="absolute bottom-8 left-8">
+        <button id="btn-step5-back"
+            class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+    </div>
+    <div class="absolute bottom-8 right-8">
+        <button id="btn-step5-next"
+            class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors">Continue</button>
+    </div>
+</div>
+
+<!-- Step 6 Form (Review) -->
+<div class="form-step hidden" id="form-step6">
+    <div class="space-y-6">
+        <!-- Summary of Configuration -->
+        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h4 class="font-bold mb-4 text-lg">Review Configuration</h4>
+            <ul class="text-sm space-y-3 text-gray-700">
+                <li class="flex justify-between"><span class="text-gray-500">IoT DeviceType:</span>
+                    <span class="font-medium text-right" id="review-iot"></span>
+                </li>
+                <li class="flex justify-between"><span class="text-gray-500">Interaction:</span> <span
+                        class="font-medium text-right" id="review-interaction"></span></li>
+                <li class="flex justify-between"><span class="text-gray-500">Attribute:</span> <span
+                        class="font-medium text-right" id="review-attribute"></span></li>
+                <li class="flex justify-between"><span class="text-gray-500">Context:</span> <span
+                        class="font-medium text-right" id="review-context"></span></li>
+                <li class="flex justify-between"><span class="text-gray-500">Process Logic:</span> <span
+                        class="font-medium text-right" id="review-process"></span></li>
+            </ul>
+        </div>
+    </div>
+    <div class="absolute bottom-8 left-8">
+        <button id="btn-step6-back"
+            class="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Back</button>
+    </div>
+    <div class="absolute bottom-8 right-8">
+        <button id="btn-step6-finish"
+            class="px-6 py-2 bg-amber-400 text-black font-bold rounded-lg hover:bg-amber-50 shadow-md">Finish
+            & Integrate</button>
+    </div>
+</div>

@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}Uploaded IoT Files · IoTEL{% endblock %}
+
+{% block content %}
+<style>
+    .files-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .files-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .combine-form button {
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: none;
+        background: #1f2937;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .combine-form button:disabled {
+        background: rgba(100, 116, 139, 0.5);
+        cursor: not-allowed;
+    }
+
+    .files-header-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 12px;
+        min-width: 220px;
+    }
+
+    .combine-progress {
+        width: 100%;
+        max-width: 280px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .combine-progress[hidden] {
+        display: none;
+    }
+
+    .progress-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+    }
+
+    .progress-bar {
+        position: relative;
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.35);
+        overflow: hidden;
+    }
+
+    .progress-bar__fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #1f2937, #334155);
+        transition: width 0.25s ease;
+    }
+
+    .combine-error {
+        max-width: 280px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #991b1b;
+        background: rgba(248, 113, 113, 0.18);
+        border: 1px solid rgba(248, 113, 113, 0.45);
+        border-radius: 12px;
+        padding: 8px 12px;
+    }
+
+    .combine-error[hidden] {
+        display: none;
+    }
+
+    .files-table-wrapper {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        overflow-x: auto;
+    }
+
+    table.files-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    table.files-table thead {
+        background: rgba(248, 250, 252, 0.9);
+    }
+
+    table.files-table th,
+    table.files-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        text-align: left;
+    }
+
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-weight: 600;
+        font-size: 12px;
+    }
+
+    .files-table a.file-link {
+        color: #000;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .files-table a.file-link:visited {
+        color: #000;
+    }
+
+    .files-table a.file-link:hover,
+    .files-table a.file-link:focus-visible {
+        color: #334155;
+        text-decoration: underline;
+    }
+
+    .actions-cell {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .delete-form {
+        margin: 0;
+    }
+
+    .delete-button {
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        background: rgba(254, 226, 226, 0.6);
+        color: #991b1b;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .delete-button:hover,
+    .delete-button:focus-visible {
+        background: rgba(254, 202, 202, 0.9);
+        border-color: rgba(220, 38, 38, 0.7);
+    }
+
+    .actions-header {
+        text-align: right;
+    }
+
+    .files-table a.file-link.file-link--clicked {
+        color: #6b7280;
+    }
+
+    .status-chip.processed {
+        background: rgba(22, 163, 74, 0.12);
+        color: #166534;
+    }
+
+    .status-chip.pending {
+        background: rgba(245, 158, 11, 0.12);
+        color: #92400e;
+    }
+
+    .empty-state {
+        border-radius: 24px;
+        border: 1px dashed rgba(148, 163, 184, 0.6);
+        background: rgba(248, 250, 252, 0.7);
+        padding: 32px;
+        text-align: center;
+        color: #475569;
+        font-size: 14px;
+    }
+</style>
+
+<div class="files-wrapper">
+    <div class="files-header">
+        <div>
+            <h2 style="margin:0;">Uploaded Files</h2>
+            <p style="margin:4px 0 0;color:var(--text-muted);">Review CSV uploads and processing status.</p>
+            <p style="margin:8px 0 0; font-style: italic; font-size: 13px; color: var(--text-muted);">
+                Click the file name to process the IoT data.
+            </p>
+        </div>
+        <div class="files-header-actions">
+            <form class="combine-form" method="post" action="{{ url_for('combine') }}">
+                <button type="submit" {% if not combine_enabled %}disabled{% endif %}>Combine Processed Files</button>
+            </form>
+            <div id="combineProgress" class="combine-progress" hidden>
+                <div class="progress-meta">
+                    <span data-progress-label>Preparing...</span>
+                    <span data-progress-percent>0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-bar__fill" data-progress-fill></div>
+                </div>
+            </div>
+            <div id="combineError" class="combine-error" hidden></div>
+        </div>
+    </div>
+
+    {% if files %}
+    <div class="files-table-wrapper">
+        <table class="files-table">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Modified</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="actions-header">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in files %}
+                <tr>
+                    <td><a class="file-link" href="{{ url_for('profile', filename=file.name) }}">{{ file.name }}</a>
+                    </td>
+                    <td>{{ file.size_label or "—" }}</td>
+                    <td>{{ file.mtime_label or "—" }}</td>
+                    <td>
+                        {% if file.processed %}
+                        <span class="status-chip processed">Processed</span>
+                        {% else %}
+                        <span class="status-chip pending">Not processed</span>
+                        {% endif %}
+                    </td>
+                    <td class="actions-cell">
+                        <form class="delete-form" method="post"
+                            action="{{ url_for('delete_iot_file', filename=file.name) }}"
+                            data-filename="{{ file.name }}">
+                            <button type="submit" class="delete-button">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No files uploaded yet. Visit the home page to add CSV files.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const fileLinks = document.querySelectorAll('.files-table a.file-link');
+        fileLinks.forEach((link) => {
+            const markClicked = () => {
+                link.classList.add('file-link--clicked');
+            };
+            link.addEventListener('click', markClicked);
+            link.addEventListener('auxclick', markClicked);
+            link.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    markClicked();
+                }
+            });
+        });
+
+        const deleteForms = document.querySelectorAll('.delete-form');
+        deleteForms.forEach((form) => {
+            form.addEventListener('submit', (event) => {
+                const name = form.dataset.filename || 'this file';
+                const confirmed = window.confirm(`Delete ${name}? This removes the upload, processed outputs, and any combined dataset.`);
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        });
+
+        const combineForm = document.querySelector('.combine-form');
+        if (!combineForm) {
+            return;
+        }
+        const combineButton = combineForm.querySelector('button');
+        const initialDisabled = combineButton ? combineButton.disabled : false;
+        const progressContainer = document.getElementById('combineProgress');
+        const progressFill = progressContainer ? progressContainer.querySelector('[data-progress-fill]') : null;
+        const progressLabel = progressContainer ? progressContainer.querySelector('[data-progress-label]') : null;
+        const progressPercent = progressContainer ? progressContainer.querySelector('[data-progress-percent]') : null;
+        const errorContainer = document.getElementById('combineError');
+        let pollTimer = null;
+
+        function clampPercent(value) {
+            if (!Number.isFinite(value)) {
+                return 0;
+            }
+            return Math.max(0, Math.min(100, Math.round(value)));
+        }
+
+        function stopPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        function showError(message) {
+            if (!errorContainer) {
+                return;
+            }
+            errorContainer.textContent = message;
+            errorContainer.hidden = false;
+        }
+
+        function clearError() {
+            if (!errorContainer) {
+                return;
+            }
+            errorContainer.hidden = true;
+            errorContainer.textContent = '';
+        }
+
+        function updateProgress(data) {
+            if (!data) {
+                return;
+            }
+            const state = data.state || 'idle';
+            const total = typeof data.total === 'number' ? data.total : 0;
+            const current = typeof data.current === 'number' ? data.current : 0;
+            const percentValue = typeof data.percent === 'number'
+                ? data.percent
+                : (total ? (current / total) * 100 : 0);
+
+            if (progressContainer) {
+                progressContainer.hidden = state === 'idle';
+            }
+            if (progressFill) {
+                progressFill.style.width = clampPercent(percentValue) + '%';
+            }
+            if (progressPercent) {
+                progressPercent.textContent = clampPercent(percentValue) + '%';
+            }
+            if (progressLabel) {
+                progressLabel.textContent = data.message || (state === 'completed' ? 'Combine completed.' : 'Combining files...');
+            }
+
+            if (state === 'running') {
+                clearError();
+                if (combineButton) {
+                    combineButton.disabled = true;
+                }
+                return;
+            }
+
+            if (state === 'failed') {
+                stopPolling();
+                if (combineButton) {
+                    combineButton.disabled = initialDisabled;
+                }
+                showError(data.error || data.message || 'Combine failed.');
+                return;
+            }
+
+            if (state === 'completed') {
+                stopPolling();
+                if (progressFill) {
+                    progressFill.style.width = '100%';
+                }
+                if (progressPercent) {
+                    progressPercent.textContent = '100%';
+                }
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else if (combineButton) {
+                    combineButton.disabled = initialDisabled;
+                }
+                return;
+            }
+
+            if (state === 'idle' && combineButton) {
+                combineButton.disabled = initialDisabled;
+            }
+        }
+
+        function pollStatus() {
+            fetch('{{ url_for("combine_status") }}', { cache: 'no-store' })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    updateProgress(data);
+                    if (!data || data.state !== 'running') {
+                        stopPolling();
+                    }
+                })
+                .catch((err) => {
+                    stopPolling();
+                    showError('Failed to check combine progress. ' + err.message);
+                    if (combineButton) {
+                        combineButton.disabled = initialDisabled;
+                    }
+                });
+        }
+
+        combineForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!combineButton) {
+                return;
+            }
+            if (combineButton.disabled && initialDisabled) {
+                return;
+            }
+
+            clearError();
+            combineButton.disabled = true;
+            if (progressContainer) {
+                progressContainer.hidden = false;
+            }
+            if (progressFill) {
+                progressFill.style.width = '0%';
+            }
+            if (progressPercent) {
+                progressPercent.textContent = '0%';
+            }
+            if (progressLabel) {
+                progressLabel.textContent = 'Preparing to combine...';
+            }
+
+            fetch(combineForm.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then((response) => {
+                    if (!response.ok && response.status !== 202) {
+                        return response.json().catch(() => ({})).then((payload) => {
+                            const message = (payload && payload.message) ? payload.message : 'Failed to start combine.';
+                            throw new Error(message);
+                        });
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    updateProgress(data);
+                    if (data && data.state === 'running') {
+                        pollStatus();
+                        pollTimer = setInterval(pollStatus, 750);
+                    } else if ((!data || data.state !== 'completed') && combineButton) {
+                        combineButton.disabled = initialDisabled;
+                    }
+                })
+                .catch((error) => {
+                    stopPolling();
+                    if (combineButton) {
+                        combineButton.disabled = initialDisabled;
+                    }
+                    if (progressContainer) {
+                        progressContainer.hidden = true;
+                    }
+                    showError(error.message || 'Failed to start combine.');
+                });
+        });
+
+        fetch('{{ url_for("combine_status") }}', { cache: 'no-store' })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+                if (!data) {
+                    return;
+                }
+                if (data.state === 'running') {
+                    if (combineButton) {
+                        combineButton.disabled = true;
+                    }
+                    if (progressContainer) {
+                        progressContainer.hidden = false;
+                    }
+                    updateProgress(data);
+                    pollStatus();
+                    pollTimer = setInterval(pollStatus, 750);
+                } else if (data.state === 'failed') {
+                    showError(data.message || 'Previous combine attempt failed.');
+                }
+            })
+            .catch(() => { });
+    });
+</script>
+{% endblock %}

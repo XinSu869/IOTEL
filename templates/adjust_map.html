@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Adjust & Map · {{ filename }}{% endblock %}
+
+{% block content %}
+<style>
+    .adjust-wrapper {
+        display: grid;
+        grid-template-columns: minmax(360px, 520px) minmax(0, 1fr);
+        gap: 24px;
+    }
+
+    .panel {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        padding: 24px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .panel h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .adjust-form table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .adjust-form th,
+    .adjust-form td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        text-align: left;
+    }
+
+    .adjust-form select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+    }
+
+    .preview-section {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        flex: 1;
+    }
+
+    .preview-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .preview-table th,
+    .preview-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .primary-btn {
+        background: #1f2937;
+        color: #fff;
+    }
+
+    .secondary-btn {
+        background: rgba(100, 116, 139, 0.14);
+        color: #1f2937;
+    }
+
+    @media (max-width: 960px) {
+        .adjust-wrapper {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="adjust-wrapper" data-adjust-container data-preview-url="{{ url_for('adjust_preview', filename=filename) }}"
+    data-preview-limit="20" data-allowed-names='{{ allowed_names|tojson }}' data-location-field="location">
+    <section class="panel">
+        <h2>IoT Data Processing</h2>
+        <div style="font-size:13px;color:var(--text-muted);">
+            The elements of the Common IoT data schema: <strong>{{ allowed_names|join(', ') }}</strong>.
+        </div>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);">
+            Choose the desired data type for each column and map to the common IoT data schema.
+            Mapping multiple columns to <strong>property</strong> will stack them into <code>property</code> and
+            <code>property_value</code> rows.
+        </p>
+        <form id="adjust-form" class="adjust-form" method="post"
+            action="{{ url_for('adjust_apply', filename=filename) }}" data-preview-form>
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Column</th>
+                        <th scope="col">Data type</th>
+                        <th scope="col">Common Schema</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for column in columns %}
+                    <tr>
+                        <td>{{ column.name }}</td>
+                        <td>
+                            <select name="types[{{ column.name }}]" data-dtype="{{ column.name }}">
+                                {% for option in dtype_options %}
+                                <option value="{{ option }}" {% if option==column.selected_dtype %}selected{% endif %}>
+                                    {{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select name="mapping[{{ column.name }}]" data-mapping="{{ column.name }}">
+                                <option value="">(drop)</option>
+                                {% for allowed in allowed_names %}
+                                <option value="{{ allowed }}" {% if allowed==column.selected_mapping %}selected{% endif
+                                    %}>{{ allowed }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <input type="hidden" name="force_null_location" value="" data-null-location-flag>
+        </form>
+        <form id="back-form" method="post" action="{{ url_for('adjust_back', filename=filename) }}"></form>
+        <div class="actions">
+            <button class="primary-btn" type="submit" form="adjust-form">Apply</button>
+            <button class="secondary-btn" type="submit" form="back-form">Back</button>
+        </div>
+    </section>
+
+    <section class="panel preview-section">
+        <h2>Live Preview (Top 20 Rows)</h2>
+        <div id="preview-status" data-preview-status style="font-size:13px;color:var(--text-muted);">Preview updates
+            automatically as selections change.</div>
+        <div class="preview-table-wrapper">
+            <table class="preview-table">
+                <thead>
+                    <tr id="preview-headers">
+                        {% for header in preview_headers %}
+                        <th scope="col">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody id="preview-body">
+                    {% if preview_rows %}
+                    {% for row in preview_rows %}
+                    <tr>
+                        {% for header in preview_headers %}
+                        <td>{{ row.get(header) }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ preview_headers|length or 1 }}">No rows available with current selections.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/adjust.js') }}" defer></script>
+{% endblock %}

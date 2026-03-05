@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Review & Export · IoTEL{% endblock %}
+
+{% block content %}
+<style>
+    .review-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .panel {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+        padding: 24px 28px;
+    }
+
+    .panel h2 {
+        margin-top: 0;
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .preview-table-wrapper {
+        overflow-x: auto;
+    }
+
+    table.preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    table.preview-table thead {
+        background: rgba(248, 250, 252, 0.9);
+    }
+
+    table.preview-table th,
+    table.preview-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .primary-btn {
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: none;
+        background: #1f2937;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .empty-state {
+        border-radius: 24px;
+        border: 1px dashed rgba(148, 163, 184, 0.6);
+        background: rgba(248, 250, 252, 0.7);
+        padding: 32px;
+        text-align: center;
+        color: #475569;
+        font-size: 14px;
+    }
+
+    .secondary-btn {
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: #ffffff;
+        color: #1f2937;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        margin-right: 12px;
+        transition: background-color 0.2s;
+    }
+
+    .secondary-btn:hover {
+        background-color: #f8fafc;
+    }
+</style>
+
+<div class="review-wrapper">
+    <div class="panel">
+        <h2>Statistics for the Processed Dataset</h2>
+        <div class="preview-table-wrapper">
+            <table class="preview-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Device Type</th>
+                        <th scope="col">Row Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if device_stats %}
+                    {% for stat in device_stats %}
+                    <tr>
+                        <td>{{ stat.device_type }}</td>
+                        <td>{{ stat.count }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="2">No statistics available.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Processed Dataset Preview</h2>
+        <p style="margin:0;color:var(--text-muted);">Showing up to 20 rows from <code>{{ output_path }}</code>.</p>
+        <div class="preview-table-wrapper">
+            <table class="preview-table">
+                <thead>
+                    <tr>
+                        {% for header in headers %}
+                        <th scope="col">{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rows %}
+                    {% for row in rows %}
+                    <tr>
+                        {% for header in headers %}
+                        <td>{{ row[header] }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ headers|length or 1 }}">No combined rows to display.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a class="secondary-btn" href="{{ url_for('home') }}">Return to Home</a>
+        <a class="primary-btn" href="{{ url_for('export') }}">Download Processed Data</a>
+    </div>
+</div>
+{% endblock %}

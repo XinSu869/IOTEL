@@ -1,0 +1,16 @@
+services:
+  web_tool:
+    build: .
+    container_name: iot_web_tool
+    ports:
+      - "5001:5000"
+    volumes:
+      # Mount data directories to persist them on the host machine
+      - ./uploads:/app/uploads
+      - ./adjusted:/app/adjusted
+      - ./transformed:/app/transformed
+      - ./integrated:/app/integrated
+      - ./config:/app/config
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped

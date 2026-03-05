@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Home · IoTEL{% endblock %}
+
+{% block content %}
+<style>
+    .home-page {
+        display: flex;
+        flex-direction: column;
+        gap: 48px;
+        max-width: 980px;
+        margin: 0 auto;
+    }
+
+    .upload-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 32px;
+    }
+
+    .upload-card {
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 28px;
+        padding: 36px 32px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.04);
+        border: 1px solid rgba(214, 214, 220, 0.7);
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        position: relative;
+    }
+
+    .upload-card__heading {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .upload-icon {
+        font-size: 34px;
+        color: #1f2937;
+    }
+
+    .upload-card__title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        text-align: center;
+    }
+
+    .dropzone {
+        border: 2px dashed rgba(55, 65, 81, 0.18);
+        border-radius: 24px;
+        padding: 32px 24px;
+        text-align: center;
+        background: rgba(248, 248, 249, 0.7);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .dropzone.is-dragover {
+        border-color: rgba(31, 41, 55, 0.45);
+        background: rgba(231, 241, 255, 0.7);
+    }
+
+    .dropzone .material-icons {
+        font-size: 30px;
+        color: #1f2937;
+    }
+
+    .dropzone p {
+        margin: 0;
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .dropzone input[type="file"] {
+        display: none;
+    }
+
+    .browse-btn {
+        padding: 10px 22px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #ffffff;
+        color: #1f2937;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .browse-btn:hover {
+        background: #1f2937;
+        color: #ffffff;
+    }
+
+    .format-hint {
+        font-size: 13px;
+        color: rgba(71, 85, 105, 0.9);
+        margin: 0;
+    }
+
+    .illustration {
+        display: flex;
+        justify-content: center;
+    }
+
+    .illustration img {
+        max-width: 540px;
+        width: 100%;
+        height: auto;
+    }
+
+    .upload-alert {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+        padding: 14px 18px;
+        border: 1px solid transparent;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .upload-alert--success {
+        background: #dcfce7;
+        border-color: #86efac;
+        color: #166534;
+    }
+
+    .upload-alert--error {
+        background: #fee2e2;
+        border-color: #fca5a5;
+        color: #991b1b;
+    }
+
+    .completion-badge {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 72px;
+        height: 72px;
+        object-fit: contain;
+        pointer-events: none;
+    }
+
+    @media (max-width: 720px) {
+        .home-page {
+            gap: 36px;
+        }
+
+        .upload-card {
+            padding: 28px 24px;
+        }
+
+        .dropzone {
+            padding: 28px 20px;
+        }
+    }
+</style>
+
+<div class="home-page">
+    <div class="upload-grid">
+        {# Card: IoT data upload — accepts CSV files #}
+        <article class="upload-card">
+            {% if combined_ready %}
+            <img src="{{ url_for('static', filename='images/completed.png') }}" alt="Processed dataset ready"
+                class="completion-badge">
+            {% endif %}
+            <header class="upload-card__heading">
+                <span class="material-icons upload-icon" aria-hidden="true">wifi_tethering</span>
+                <h2 class="upload-card__title">IoT Data</h2>
+            </header>
+            <form class="dropzone" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+                data-upload-form aria-label="Upload IoT CSV files">
+                <span class="material-icons" aria-hidden="true">file_upload</span>
+                <p>Drag and drop CSV files here, or</p>
+                <button type="button" class="browse-btn" data-upload-trigger>Browse Files</button>
+                <input type="file" name="files" accept=".csv" multiple aria-label="IoT data CSV files">
+                <p class="format-hint">Accepted format: CSV (one or many files at once)</p>
+            </form>
+        </article>
+        {# Card: Event Log upload — accepts SQLite/OCEL files #}
+        <article class="upload-card">
+            {% if ocel_ready %}
+            <img src="{{ url_for('static', filename='images/completed.png') }}" alt="OCEL data ready"
+                class="completion-badge">
+            {% endif %}
+            <header class="upload-card__heading">
+                <span class="material-icons upload-icon" aria-hidden="true">business_center</span>
+                <h2 class="upload-card__title">OCEL 2.0</h2>
+            </header>
+            <form class="dropzone" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+                data-upload-form aria-label="Upload event log">
+                <span class="material-icons" aria-hidden="true">file_upload</span>
+                <p>Drag and drop your file here, or</p>
+                <button type="button" class="browse-btn" data-upload-trigger>Browse Files</button>
+                <input type="file" name="file" accept=".db,.sqlite,.sqlite3" aria-label="Business event log file">
+                <p class="format-hint">Accept OCEL 2.0 stored in SQLite database</p>
+            </form>
+        </article>
+    </div>
+
+    {# Decorative hero illustration #}
+    <div class="illustration">
+        <img src="{{ url_for('static', filename='images/home.png') }}"
+            alt="Illustration of IoT devices surrounding a person using a laptop">
+    </div>
+</div>
+
+<script>
+    // Progressive enhancement: JS to support click-to-browse and drag-and-drop
+    (function initUploadZones() {
+        const forms = document.querySelectorAll('[data-upload-form]');
+        forms.forEach((form) => {
+            const input = form.querySelector('input[type="file"]');
+            const trigger = form.querySelector('[data-upload-trigger]');
+            if (!input || !trigger) {
+                return;
+            }
+
+            trigger.addEventListener('click', () => input.click());
+
+            input.addEventListener('change', () => {
+                if (input.files && input.files.length) {
+                    form.submit();
+                }
+            });
+
+            const handleDrag = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            };
+
+            form.addEventListener('dragenter', (event) => {
+                handleDrag(event);
+                form.classList.add('is-dragover');
+            });
+
+            form.addEventListener('dragover', handleDrag);
+
+            form.addEventListener('dragleave', (event) => {
+                handleDrag(event);
+                const related = event.relatedTarget;
+                if (!related || !form.contains(related)) {
+                    form.classList.remove('is-dragover');
+                }
+            });
+
+            form.addEventListener('drop', (event) => {
+                handleDrag(event);
+                form.classList.remove('is-dragover');
+                const files = event.dataTransfer?.files;
+                if (files && files.length) {
+                    input.files = files;
+                    form.submit();
+                }
+            });
+        });
+    })();
+</script>
+{% endblock %}

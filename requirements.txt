@@ -1,0 +1,10 @@
+Flask
+polars
+pyarrow
+duckdb
+pydantic
+python-multipart
+waitress
+numpy
+pandas
+pm4py

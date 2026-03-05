@@ -1,0 +1,934 @@
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- CHECK FILE STATUS ---
+        (async function checkFile() {
+            try {
+                const resp = await fetch('/api/integrate/check-file');
+                const data = await resp.json();
+
+                if (data.status === 'missing') {
+                    initializeFile(false);
+                } else if (data.status === 'exists_but_older') {
+                    // Show Modal
+                    document.getElementById('overwriteModal').classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error("File check failed", e);
+            }
+        })();
+
+        document.getElementById('btnKeepExisting').addEventListener('click', () => {
+            document.getElementById('overwriteModal').classList.add('hidden');
+        });
+
+        document.getElementById('btnOverwrite').addEventListener('click', () => {
+            document.getElementById('overwriteModal').classList.add('hidden');
+            initializeFile(true);
+        });
+
+        async function initializeFile(overwrite) {
+            try {
+                const resp = await fetch('/api/integrate/initialize-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ overwrite: overwrite })
+                });
+                const res = await resp.json();
+                if (overwrite && !res.error) {
+                    // Reload to refresh view/logic
+                    window.location.reload();
+                }
+            } catch (e) {
+                console.error("Init failed", e);
+            }
+        }
+
+        // State
+        const state = {
+            currentStep: 1,
+            maxStep: 6,
+            data: {
+                iot_type: null,
+                interaction_level: null,
+                interaction_label: null,
+                attribute_type: null,
+                attribute_label: null,
+                context: {},
+                context_label: null,
+                process_logic: "1",
+                process_details: {}
+            }
+        };
+
+        // --- VIEW UPDATE FUNCTIONS ---
+
+        function updateView() {
+            // 1. Show correct Form
+            document.querySelectorAll('.form-step').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`form-step${state.currentStep}`).classList.remove('hidden');
+
+            // 2. Update Header Title
+            const stepTitles = ["Select IoT Device Type", "Select Interaction Type", "Select Attribute Type", "Specify Relationship", "Determine IoT Data Manipulation", "Review & Integrate"];
+            document.getElementById('form-title').textContent = `Step ${state.currentStep}: ${stepTitles[state.currentStep - 1]}`;
+
+            // 3. Update Left Stepper UI
+            for (let i = 1; i <= state.maxStep; i++) {
+                const indicator = document.getElementById(`indicator-step${i}`);
+                const circle = indicator.querySelector('.step-circle');
+
+                // Reset classes
+                circle.className = 'step-circle w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm mr-4 shrink-0 transition-all duration-300 z-10';
+
+                if (i < state.currentStep) {
+                    // Completed
+                    circle.classList.add('bg-amber-400', 'text-black');
+                    circle.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>';
+                } else if (i === state.currentStep) {
+                    // Active
+                    circle.classList.add('bg-white', 'text-amber-500', 'border-4', 'border-amber-100', 'ring-2', 'ring-amber-400');
+                    circle.textContent = i;
+                } else {
+                    // Future
+                    circle.classList.add('bg-black', 'text-white');
+                    circle.textContent = i;
+                }
+            }
+        }
+
+        function updateSummary(step, text) {
+            const summary = document.getElementById(`summary-step${step}`);
+            if (text) {
+                summary.textContent = text;
+                summary.classList.remove('hidden');
+            } else {
+                summary.classList.add('hidden');
+            }
+        }
+
+
+        // --- STEP 1: IOT TYPE ---
+
+        const s1Select = document.getElementById('iot-type-select');
+        const s1Next = document.getElementById('btn-step1-next');
+        const s1Results = document.getElementById('step1-results');
+        const s1List = document.getElementById('step1-objects-list');
+        const s1Loading = document.getElementById('step1-loading');
+
+        // State for Step 1 selection
+        let step1SelectedOcelType = null;
+
+        // Init state check
+        if (s1Select.value) {
+            s1Next.disabled = true;
+        }
+
+        s1Select.addEventListener('change', async (e) => {
+            const val = e.target.value;
+            s1Results.classList.add('hidden'); // Hide until loaded
+            s1List.innerHTML = '';
+            step1SelectedOcelType = null;
+            s1Next.disabled = true;
+
+            if (!val) {
+                return;
+            }
+
+            // Show Loading
+            s1Loading.classList.remove('hidden');
+
+            try {
+                // Call API
+                const resp = await fetch('/api/integrate/step1', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ iot_type: val })
+                });
+                const res = await resp.json();
+                if (res.error) throw new Error(res.error);
+
+                // Success
+                state.data.iot_type = val;
+
+                // Render List with Radios
+
+                if (res.object_types && res.object_types.length > 0) {
+                    s1List.innerHTML = res.object_types.map(item => {
+                        const isDone = item.status === 'integrated';
+                        const disabledClass = isDone ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'hover:bg-amber-50 cursor-pointer';
+                        const labelClass = isDone ? 'text-gray-400 line-through' : 'text-gray-900 font-medium';
+                        const statusBadge = isDone ? '<span class="text-xs font-bold text-green-600 ml-2">(Integrated)</span>' : '';
+
+                        return `
+                        <li class="p-3 border rounded mb-2 transition-colors flex items-center ${disabledClass}">
+                            <label class="flex items-center w-full cursor-pointer">
+                                <input type="radio" name="ocel_type_select" value="${item.type}" 
+                                    ${isDone ? 'disabled' : ''} 
+                                    class="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300">
+                                <span class="ml-3 ${labelClass}">${item.type}</span>
+                                ${statusBadge}
+                            </label>
+                        </li>`;
+                    }).join('');
+
+                    // Add listener for radios
+                    document.querySelectorAll('input[name="ocel_type_select"]').forEach(radio => {
+                        radio.addEventListener('change', (e) => {
+                            step1SelectedOcelType = e.target.value;
+                            s1Next.disabled = false;
+                        });
+                    });
+
+                } else {
+                    // No correlation case
+                    s1List.innerHTML = `
+                        <li class="p-3 border rounded mb-2 bg-amber-50 border-amber-200">
+                            <label class="flex items-center w-full cursor-pointer">
+                                <input type="radio" name="ocel_type_select" value="NONE" checked 
+                                    class="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300">
+                                <span class="ml-3 text-gray-900 font-medium">No specific object correlation found</span>
+                            </label>
+                        </li>
+                     `;
+                    step1SelectedOcelType = "NONE";
+                    s1Next.disabled = false;
+                }
+
+                s1Results.classList.remove('hidden');
+
+            } catch (e) {
+                alert("Error loading device data: " + e.message);
+                s1Select.value = ""; // Reset
+            } finally {
+                s1Loading.classList.add('hidden');
+            }
+        });
+
+        s1Next.addEventListener('click', async () => {
+            // Confirm Selection with Backend to refine data
+            try {
+                s1Next.disabled = true;
+                s1Next.textContent = "Processing...";
+
+                const resp = await fetch('/api/integrate/step1-select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        iot_type: state.data.iot_type,
+                        ocel_type: step1SelectedOcelType
+                    })
+                });
+                const res = await resp.json();
+                if (res.error) throw new Error(res.error);
+
+                // Success
+                let summary = state.data.iot_type;
+                if (step1SelectedOcelType !== "NONE") {
+                    summary += ` (${step1SelectedOcelType})`;
+                }
+
+                // Save selection for later steps
+                state.data.selected_ocel_type = step1SelectedOcelType;
+
+                updateSummary(1, summary);
+
+                state.currentStep = 2;
+                updateView();
+
+            } catch (e) {
+                alert("Error selecting type: " + e.message);
+            } finally {
+                s1Next.disabled = false;
+                s1Next.textContent = "Continue";
+            }
+        });
+
+
+        // --- STEP 2: INTERACTION LEVEL ---
+
+        const s2Radios = document.querySelectorAll('input[name="interaction_level"]');
+        const s2Next = document.getElementById('btn-step2-next');
+        const s2Back = document.getElementById('btn-step2-back');
+
+        s2Radios.forEach(r => {
+            r.addEventListener('change', (e) => {
+                s2Next.disabled = false;
+            });
+        });
+
+        s2Back.addEventListener('click', () => {
+            state.currentStep = 1;
+            updateView();
+        });
+
+        s2Next.addEventListener('click', () => {
+            const selected = document.querySelector('input[name="interaction_level"]:checked');
+            state.data.interaction_level = selected.value;
+            state.data.interaction_label = selected.getAttribute('data-label');
+
+            updateSummary(2, state.data.interaction_label);
+
+            // Lock Logic for Step 3
+            handleStep3Lock(selected.value);
+
+            state.currentStep = 3;
+            updateView();
+        });
+
+
+        // --- STEP 3: ATTRIBUTE TYPE ---
+
+        const s3Radios = document.querySelectorAll('input[name="attribute_type"]');
+        const s3Next = document.getElementById('btn-step3-next');
+        const s3Back = document.getElementById('btn-step3-back');
+        const s3LockMsg = document.getElementById('step3-lock-msg');
+
+        function handleStep3Lock(interactionVal) {
+            // Reset
+            s3Radios.forEach(r => {
+                r.disabled = false;
+                r.checked = false;
+            });
+            s3Next.disabled = true;
+            s3LockMsg.classList.add('hidden');
+
+            // Logic
+            if (interactionVal === "2") { // Multiple Events -> Object Attribute (1)
+                const r1 = document.querySelector('input[name="attribute_type"][value="1"]');
+                r1.checked = true;
+                s3Next.disabled = false;
+
+                // Disable others
+                document.querySelector('input[name="attribute_type"][value="2"]').disabled = true;
+
+                s3LockMsg.textContent = "Selection locked to 'Object Attribute' because 'Multiple Events' was selected previously.";
+                s3LockMsg.classList.remove('hidden');
+
+            } else if (interactionVal === "3") { // Process Level -> Event Attribute (2)
+                const r2 = document.querySelector('input[name="attribute_type"][value="2"]');
+                r2.checked = true;
+                s3Next.disabled = false;
+
+                // Disable others
+                document.querySelector('input[name="attribute_type"][value="1"]').disabled = true;
+
+                s3LockMsg.textContent = "Selection locked to 'Event Attribute' because 'Process Level' was selected previously.";
+                s3LockMsg.classList.remove('hidden');
+            }
+        }
+
+        s3Radios.forEach(r => {
+            r.addEventListener('change', () => s3Next.disabled = false);
+        });
+
+        s3Back.addEventListener('click', () => {
+            state.currentStep = 2;
+            updateView();
+        });
+
+        s3Next.addEventListener('click', () => {
+            const selected = document.querySelector('input[name="attribute_type"]:checked');
+            state.data.attribute_type = selected.value;
+            state.data.attribute_label = selected.getAttribute('data-label');
+
+            updateSummary(3, state.data.attribute_label);
+
+            // Trigger Load for Step 4
+            loadStep4(state.data.attribute_type);
+
+            state.currentStep = 4;
+            updateView();
+        });
+
+
+        // --- STEP 4: CONTEXT ---
+
+        const s4Back = document.getElementById('btn-step4-back');
+
+        async function loadStep4(attributeType) {
+            const container = document.getElementById('step4-dynamic-content');
+            container.innerHTML = '<div class="animate-pulse space-y-4"><div class="h-4 bg-gray-200 rounded w-1/4"></div><div class="h-10 bg-gray-200 rounded"></div></div>';
+
+            try {
+                const resp = await fetch('/api/integrate/context-options');
+                const options = await resp.json();
+
+                let html = '';
+
+                if (attributeType === "1") { // Object Attribute
+                    const preSelected = state.data.selected_ocel_type;
+                    const isFixed = preSelected && preSelected !== "NONE";
+
+                    let selectorHtml = '';
+
+                    if (isFixed) {
+                        // Fixed Object Type
+                        selectorHtml = `
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Business Object Type</label>
+                                <input type="text" id="s4-type-display" value="${preSelected}" disabled class="block w-full p-3 border border-gray-200 bg-gray-100 rounded-lg text-gray-500 mt-2">
+                                <input type="hidden" id="s4-type" value="${preSelected}">
+                            </div>
+                        `;
+                    } else {
+                        // Dropdown
+                        selectorHtml = `
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Select Object Type</label>
+                                <select id="s4-type" class="block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors mt-2">
+                                    <option value="">-- Select Object Type --</option>
+                                    ${options.object_types.map(t => `<option value="${t}">${t}</option>`).join('')}
+                                </select>
+                            </div>
+                        `;
+                    }
+
+                    html = `
+                     <div class="space-y-6">
+                        ${selectorHtml}
+                         <!-- Association Check -->
+                         <div class="mt-4 p-4 border rounded-lg bg-gray-50">
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="s4-assoc-check" class="rounded text-amber-500 focus:ring-amber-500">
+                                <span class="text-sm font-medium text-gray-700">Does data associate with events?</span>
+                            </label>
+                            
+                            <!-- Dynamic Association List -->
+                            <div id="s4-assoc-container" class="hidden mt-3 space-y-3">
+                                <div id="assoc-rows-container" class="space-y-2">
+                                    <!-- Rows injected here -->
+                                </div>
+                                <button id="btn-add-assoc" class="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center">
+                                    <span class="material-icons text-base mr-1">add</span> Add Linked Event
+                                </button>
+                                <p class="text-xs text-gray-500 mt-2">Semantics of the relationship (Required for each relationship)</p>
+                            </div>
+                         </div>
+                         
+                        <div id="div-single-qual">
+                            <label class="block text-sm font-medium text-gray-700">OCEL Qualifier<span class="text-red-500">*</span></label>
+                            <input type="text" id="s4-qual" class="block w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors mt-2" placeholder="e.g. GPS tracks car">
+                             <p class="text-xs text-amber-600 mt-1">Semantics of the relationship (Required)</p>
+                        </div>
+
+                         <div class="absolute bottom-8 right-8">
+                            <button id="btn-step4-next" class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors" disabled>Continue</button>
+                        </div>
+                    </div>
+                `;
+                } else { // Event Attribute
+                    html = `
+                     <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Select Event Type</label>
+                            <select id="s4-type" class="block w-full p-3 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 mt-2">
+                                <option value="">-- Select Event Type --</option>
+                                ${options.valid_event_types.map(t => `<option value="${t}">${t}</option>`).join('')}
+                            </select>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700">OCEL Qualifier <span class="text-red-500">*</span></label>
+                            <input type="text" id="s4-qual" class="block w-full p-3 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 mt-2" placeholder="e.g. GPS tracks car">
+                             <p class="text-xs text-amber-600 mt-1">Semantics of the relationship (Required)</p>
+                        </div>
+                         <div class="absolute bottom-8 right-8">
+                            <button id="btn-step4-next" class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors" disabled>Continue</button>
+                        </div>
+                    </div>
+                `;
+                }
+                container.innerHTML = html;
+
+                // Event Listeners for Dynamic Content
+                const typeSelect = document.getElementById('s4-type');
+                const qualInput = document.getElementById('s4-qual');
+                const nextBtn = document.getElementById('btn-step4-next');
+                const assocCheck = document.getElementById('s4-assoc-check'); // May be null
+                const assocCont = document.getElementById('s4-assoc-container');
+                const assocRowsCont = document.getElementById('assoc-rows-container');
+                const btnAddAssoc = document.getElementById('btn-add-assoc');
+
+                // Helper to create a new row
+                function createAssocRow() {
+                    const rowId = 'assoc-row-' + Date.now();
+                    const div = document.createElement('div');
+                    div.className = 'flex gap-2 items-start assoc-row';
+                    div.id = rowId;
+                    div.innerHTML = `
+                        <div class="flex-1">
+                            <select class="assoc-type block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+                                <option value="">Event Type</option>
+                                ${options.mapped_event_types.map(t => `<option value="${t}">${t}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <input type="text" class="assoc-qual block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm" placeholder="OCEL Qualifier (Req)">
+                        </div>
+                        <button class="text-gray-400 hover:text-red-500 mt-2" onclick="document.getElementById('${rowId}').remove(); window.validateStep4();">
+                            <span class="material-icons text-base">close</span>
+                        </button>
+                    `;
+                    assocRowsCont.appendChild(div);
+
+                    // Add listeners to new inputs
+                    div.querySelectorAll('input, select').forEach(el => el.addEventListener('input', validateStep4));
+                }
+
+                // Expose validateStep4 to global scope for row deletion trigger
+                window.validateStep4 = function () {
+                    const hasType = !!typeSelect.value;
+                    let isValid = hasType;
+
+                    if (assocCheck && assocCheck.checked) {
+                        // Multi-Association Mode
+                        const rows = document.querySelectorAll('.assoc-row');
+                        if (rows.length === 0) isValid = false;
+
+                        rows.forEach(row => {
+                            const t = row.querySelector('.assoc-type').value;
+                            const q = row.querySelector('.assoc-qual').value.trim();
+                            if (!t || !q) isValid = false;
+                        });
+                    } else {
+                        // Single Qualifier Mode
+                        const hasQual = !!qualInput.value.trim();
+                        isValid = isValid && hasQual;
+                    }
+                    nextBtn.disabled = !isValid;
+                };
+
+                typeSelect.addEventListener('change', validateStep4);
+                qualInput.addEventListener('input', validateStep4);
+
+                if (assocCheck) {
+                    assocCheck.addEventListener('change', (e) => {
+                        const singleQualDiv = document.getElementById('div-single-qual');
+                        if (e.target.checked) {
+                            // Show Multi-Assoc, Hide Single Qual
+                            assocCont.classList.remove('hidden');
+                            singleQualDiv.classList.add('hidden');
+
+                            if (assocRowsCont.children.length === 0) createAssocRow();
+                        } else {
+                            // Hide Multi-Assoc, Show Single Qual
+                            assocCont.classList.add('hidden');
+                            singleQualDiv.classList.remove('hidden');
+                        }
+                        validateStep4();
+                    });
+
+                    btnAddAssoc.addEventListener('click', createAssocRow);
+                }
+
+                nextBtn.addEventListener('click', () => {
+                    const typeVal = typeSelect.value;
+                    let qualVal = "";
+                    let associations = [];
+
+                    if (assocCheck && assocCheck.checked) {
+                        // Multi Mode: Collect associations
+                        document.querySelectorAll('.assoc-row').forEach(row => {
+                            associations.push({
+                                event_type: row.querySelector('.assoc-type').value,
+                                ocel_qualifier: row.querySelector('.assoc-qual').value
+                            });
+                        });
+
+                    } else {
+                        // Single Mode
+                        qualVal = qualInput.value;
+                    }
+
+                    state.data.context = {
+                        ocel_type: typeVal,
+                        ocel_qualifier: qualVal,
+                        associations: associations.length > 0 ? associations : null
+                    };
+
+                    let label = `${typeVal}`;
+                    if (state.data.context.associations) {
+                        label += ` + ${associations.length} Links`;
+                    } else {
+                        label += ` (${qualVal})`;
+                    }
+
+                    state.data.context_label = label;
+                    updateSummary(4, label);
+
+                    state.currentStep = 5;
+                    updateView();
+
+                    // RESET Step 5 UI
+                    const processSelect = document.getElementById('process-logic-select');
+                    const scenarioAMsg = document.getElementById('step5-scenario-a-msg');
+                    const scenarioCMsg = document.getElementById('step5-scenario-c-msg');
+                    const step5FilterOps = document.getElementById('step5-filter-options');
+                    const step5AggOps = document.getElementById('step5-agg-options');
+
+                    // Reset options availability
+                    Array.from(processSelect.options).forEach(opt => opt.disabled = false);
+                    scenarioAMsg.classList.add('hidden');
+                    scenarioCMsg.classList.add('hidden');
+                    processSelect.value = "1";
+
+                    if (step5FilterOps) step5FilterOps.classList.add('hidden');
+                    if (step5AggOps) step5AggOps.classList.add('hidden');
+
+                    // SCENARIO CHECK
+                    // 1. Scenario A (Object Attribute + Associations)
+                    if (state.data.attribute_type === "1" && state.data.context.associations && state.data.context.associations.length > 0) {
+                        // Force "No processing"
+                        processSelect.value = "1";
+                        // Disable others
+                        Array.from(processSelect.options).forEach(opt => {
+                            if (opt.value !== "1") opt.disabled = true;
+                        });
+                        // Show warning
+                        scenarioAMsg.classList.remove('hidden');
+                    }
+                    // 2. Scenario C (Event Attribute)
+                    else if (state.data.attribute_type === "2") {
+                        scenarioCMsg.classList.remove('hidden');
+                    }
+                });
+
+            } catch (e) {
+                container.innerHTML = `<div class="text-red-500">Error loading options: ${e.message}</div>`;
+            }
+        }
+
+        s4Back.addEventListener('click', () => {
+            state.currentStep = 3;
+            updateView();
+        });
+
+
+        // --- STEP 5: PROCESS LOGIC ---
+
+        const s5Back = document.getElementById('btn-step5-back');
+        const s5Next = document.getElementById('btn-step5-next');
+        const s5Logic = document.getElementById('process-logic-select');
+
+        const s5FilterOps = document.getElementById('step5-filter-options');
+        const s5AggOps = document.getElementById('step5-agg-options');
+        const filterContainer = document.getElementById('filter-conditions-container');
+        const btnAddFilter = document.getElementById('btn-add-filter');
+
+        let availableProperties = [];
+
+        async function loadStep5Properties() {
+            if (availableProperties.length > 0) return; // already loaded
+            try {
+                filterContainer.innerHTML = '<div class="text-sm text-gray-500">Loading properties...</div>';
+                const resp = await fetch('/api/integrate/properties');
+                availableProperties = await resp.json();
+                filterContainer.innerHTML = '';
+                if (availableProperties.length === 0) {
+                    filterContainer.innerHTML = '<div class="text-sm text-red-500">No properties found.</div>';
+                } else {
+                    addFilterRow();
+                }
+            } catch (e) {
+                filterContainer.innerHTML = `<div class="text-sm text-red-500">Error loading properties: ${e.message}</div>`;
+            }
+        }
+
+        function validateFilterConditions() {
+            const rows = document.querySelectorAll('.filter-row');
+            let isValid = true;
+
+            if (s5Logic.value !== "2") {
+                s5Next.disabled = false;
+                return;
+            }
+
+            if (rows.length === 0) isValid = false;
+
+            rows.forEach(row => {
+                const propVal = row.querySelector('.filter-prop').value;
+                const lBound = row.querySelector('.filter-lower-val').value;
+                const uBound = row.querySelector('.filter-upper-val').value;
+
+                // Required: property selected AND at least one bound provided
+                if (!propVal || (!lBound && !uBound)) {
+                    isValid = false;
+                }
+            });
+
+            s5Next.disabled = !isValid;
+        }
+
+        function addFilterRow() {
+            const index = document.querySelectorAll('.filter-row').length;
+            const row = document.createElement('div');
+            row.className = 'filter-row p-3 border border-gray-200 rounded-lg bg-white space-y-3';
+
+            let logicHtml = '';
+            if (index > 0) {
+                logicHtml = `
+                    <div class="mb-2 text-sm font-bold text-blue-700">
+                        OR
+                        <input type="hidden" class="filter-logic" value="OR">
+                    </div>
+                 `;
+            }
+
+            row.innerHTML = `
+                 ${logicHtml}
+                 <div class="flex items-center justify-between">
+                     <div class="flex-1 mr-4">
+                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Property</label>
+                         <select class="filter-prop block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+                             <option value="">-- Select Property --</option>
+                             ${availableProperties.map(p => `<option value="${p}">${p}</option>`).join('')}
+                         </select>
+                     </div>
+                     ${index > 0 ? `
+                     <button type="button" class="btn-remove-filter text-gray-400 hover:text-red-500 mt-5" title="Remove Condition">
+                         <span class="material-icons text-base">close</span>
+                     </button>
+                     ` : ''}
+                 </div>
+                 
+                 <div class="flex gap-4">
+                     <div class="flex-1">
+                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Lower Bound</label>
+                         <div class="flex shadow-sm rounded-md">
+                             <select class="filter-lower-op w-16 p-2 border border-r-0 border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-gray-50">
+                                 <option value="gt">&gt;</option>
+                                 <option value="ge">&ge;</option>
+                             </select>
+                             <input type="number" step="any" class="filter-lower-val flex-1 w-full p-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm" placeholder="Value">
+                         </div>
+                     </div>
+                     
+                     <div class="flex-1">
+                         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Upper Bound</label>
+                         <div class="flex shadow-sm rounded-md">
+                             <select class="filter-upper-op w-16 p-2 border border-r-0 border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm bg-gray-50">
+                                 <option value="lt">&lt;</option>
+                                 <option value="le">&le;</option>
+                             </select>
+                             <input type="number" step="any" class="filter-upper-val flex-1 w-full p-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm" placeholder="Value">
+                         </div>
+                     </div>
+                 </div>
+                 <p class="text-xs text-amber-600 hidden err-msg mt-2">You must specify at least one bound for this condition.</p>
+             `;
+
+            filterContainer.appendChild(row);
+
+            // Attach Validation Listeners
+            const inputs = row.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    // Check bounds
+                    const lBound = row.querySelector('.filter-lower-val').value;
+                    const uBound = row.querySelector('.filter-upper-val').value;
+                    const errMsg = row.querySelector('.err-msg');
+                    if (!lBound && !uBound) {
+                        errMsg.classList.remove('hidden');
+                    } else {
+                        errMsg.classList.add('hidden');
+                    }
+                    validateFilterConditions();
+                });
+            });
+
+            if (index > 0) {
+                row.querySelector('.btn-remove-filter').addEventListener('click', (e) => {
+                    row.remove();
+                    validateFilterConditions();
+                });
+            }
+
+            // Initial check for this row
+            row.querySelector('.err-msg').classList.remove('hidden');
+            validateFilterConditions();
+        }
+
+        btnAddFilter.addEventListener('click', () => {
+            if (availableProperties.length > 0) {
+                addFilterRow();
+            }
+        });
+
+        s5Logic.addEventListener('change', (e) => {
+            const val = e.target.value;
+            s5FilterOps.classList.add('hidden');
+            s5AggOps.classList.add('hidden');
+
+            if (val === "2") {
+                s5FilterOps.classList.remove('hidden');
+                loadStep5Properties();
+                validateFilterConditions();
+            } else {
+                s5Next.disabled = false;
+            }
+            if (val === "3") s5AggOps.classList.remove('hidden');
+        });
+
+        s5Back.addEventListener('click', () => {
+            state.currentStep = 4;
+            updateView();
+        });
+
+        s5Next.addEventListener('click', () => {
+            state.data.process_logic = s5Logic.value;
+
+            // Capture extra details
+            const details = {};
+            if (state.data.process_logic === "2") {
+                const conditions = [];
+                document.querySelectorAll('.filter-row').forEach(row => {
+                    const cond = {
+                        property: row.querySelector('.filter-prop').value,
+                        lower: {},
+                        upper: {}
+                    };
+
+                    const logicSel = row.querySelector('.filter-logic');
+                    if (logicSel) {
+                        cond.logic = logicSel.value;
+                    }
+
+                    const lVal = row.querySelector('.filter-lower-val').value;
+                    if (lVal) {
+                        cond.lower.op = row.querySelector('.filter-lower-op').value;
+                        cond.lower.val = lVal;
+                    }
+
+                    const uVal = row.querySelector('.filter-upper-val').value;
+                    if (uVal) {
+                        cond.upper.op = row.querySelector('.filter-upper-op').value;
+                        cond.upper.val = uVal;
+                    }
+
+                    conditions.push(cond);
+                });
+                details.filter = { conditions: conditions };
+            } else if (state.data.process_logic === "3") {
+                const w = document.getElementById('agg-window').value;
+                if (!w || parseInt(w) <= 0) {
+                    alert("Aggregation Window must be greater than 0 minutes.");
+                    return;
+                }
+                details.aggregate = {
+                    func: document.getElementById('agg-func').value,
+                    window: w
+                };
+            }
+            state.data.process_details = details;
+
+            const logicLabels = { "1": "No data processing", "2": "Filter", "3": "Aggregate" };
+            updateSummary(5, logicLabels[state.data.process_logic]);
+
+            fillReview();
+            state.currentStep = 6;
+            updateView();
+        });
+
+        // --- STEP 6: REVIEW & Integrate ---
+
+        const s6Back = document.getElementById('btn-step6-back');
+        const s6Finish = document.getElementById('btn-step6-finish');
+
+        function fillReview() {
+            document.getElementById('review-iot').textContent = state.data.iot_type;
+            document.getElementById('review-interaction').textContent = state.data.interaction_label;
+            document.getElementById('review-attribute').textContent = state.data.attribute_label;
+            document.getElementById('review-context').textContent = state.data.context_label;
+
+            const logicLabels = { "1": "No data processing", "2": "Filter", "3": "Aggregate" };
+            document.getElementById('review-process').textContent = logicLabels[state.data.process_logic];
+        }
+
+        s6Back.addEventListener('click', () => {
+            state.currentStep = 5;
+            updateView();
+        });
+
+        s6Finish.addEventListener('click', async () => {
+            s6Finish.disabled = true;
+            s6Finish.textContent = "Integrating...";
+
+            try {
+                const resp = await fetch('/api/integrate/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state.data)
+                });
+                const res = await resp.json();
+
+                if (res.status === 'success' || res.status === 'warning') {
+                    let msg = res.message || "Integration Successful";
+
+                    const step6Container = document.getElementById('form-step6');
+
+                    let actionButtons = '';
+                    let statusTitle = "Integration Successful!";
+                    let statusColor = "text-green-600";
+                    let bgClass = "bg-green-100";
+                    let icon = '<svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+
+                    if (res.status === 'warning') {
+                        statusTitle = "Integration Completed (No New Data)";
+                        statusColor = "text-amber-600";
+                        bgClass = "bg-amber-100";
+                        icon = '<svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                    }
+
+                    if (res.all_done) {
+                        // All Done -> Go to overview
+                        msg += " <br><strong class='block mt-2 text-green-700'>All IoT data for all devices have been integrated.</strong>";
+                        actionButtons = `
+                            <a href="/" class="px-6 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors">Go to Home Page</a>
+                            <a href="/api/integrate/download" class="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors ml-4">Download Integrated Data</a>
+                         `;
+                    } else {
+                        // More to do -> Integrate Another
+                        msg += " <br><span class='block mt-2 text-amber-600 font-medium'>There are more IoT devices or object types to integrate.</span>";
+                        actionButtons = `
+                            <button onclick="window.location.href='/integrate'" class="px-6 py-2 bg-amber-400 text-black font-bold rounded-lg hover:bg-amber-50 shadow-md">Continue Integration</button>
+                             <a href="/api/integrate/download" class="px-6 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors ml-4">Download Integrated Data</a>
+                         `;
+                    }
+
+                    step6Container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center p-8 text-center h-full">
+                            <div class="w-16 h-16 ${bgClass} rounded-full flex items-center justify-center mb-6">
+                                ${icon}
+                            </div>
+                            <h3 class="text-2xl font-bold ${statusColor} mb-2">${statusTitle}</h3>
+                            <p class="text-gray-600 mb-8">${msg}</p>
+                            
+                            <div class="flex items-center justify-center flex-wrap gap-4">
+                                ${actionButtons}
+                            </div>
+                        </div>
+                     `;
+
+                    // Update stepper
+                    const circle = document.querySelector('#indicator-step6 .step-circle');
+                    if (circle) {
+                        circle.classList.remove('bg-black', 'text-white', 'bg-white', 'text-amber-500');
+                        circle.classList.add('bg-amber-400', 'text-black');
+                        circle.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>';
+                    }
+
+                } else {
+                    alert("Integration Failed: " + (res.error || "Unknown error"));
+                    s6Finish.disabled = false;
+                    s6Finish.textContent = "Finish & Integrate";
+                }
+            } catch (e) {
+                alert("Integration Error: " + e.message);
+                s6Finish.disabled = false;
+                s6Finish.textContent = "Finish & Integrate";
+            }
+        });
+
+        // Initial View Logic
+        updateView();
+
+    });
+</script>
