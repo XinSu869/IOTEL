@@ -48,7 +48,7 @@ The container starts the web application on `http://127.0.0.1:5001/`. Volumes ar
 
 Warnings are surfaced in-app when uploads are rejected, data parsing fails, or combined IoT data/integrated database encounter issues.
 
-*Please visit for the demo video: https://drive.google.com/file/d/1UY9KrkuVCIpnFwg2lyUpTS45aR_5-NJW/view?usp=sharing*
+*Please visit the following link to watch the demo video (download available for higher resolution): https://drive.google.com/file/d/1UY9KrkuVCIpnFwg2lyUpTS45aR_5-NJW/view?usp=sharing*
 
 ## Directory Overview
 
